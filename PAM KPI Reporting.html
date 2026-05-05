@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PAM KPI Reporting System · ฝบร.</title>
+  <link rel="stylesheet" href="PAM KPI Reporting-3/colors_and_type.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; }
+    #root { height: 100%; }
+    body { font-family: var(--font-sans); background: var(--bg-app); -webkit-font-smoothing: antialiased; }
+
+    @keyframes screen-enter {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0);   }
+    }
+    .screen-enter { animation: screen-enter 180ms ease forwards; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    input:focus, textarea:focus, select:focus {
+      border-color: var(--border-focus) !important;
+      outline: none;
+    }
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type="number"] { -moz-appearance: textfield; }
+
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--border-brand); }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- React 18 + Babel Standalone -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Design system (load in dependency order) -->
+  <script type="text/babel" src="PAM KPI Reporting-3/components/data.jsx"         data-presets="react"></script>
+  <script type="text/babel" src="PAM KPI Reporting-3/components/shared.jsx"       data-presets="react"></script>
+  <script type="text/babel" src="PAM KPI Reporting-3/tweaks-panel.jsx"            data-presets="react"></script>
+  <script type="text/babel" src="PAM KPI Reporting-3/components/AppShell.jsx"     data-presets="react"></script>
+  <script type="text/babel" src="PAM KPI Reporting-3/components/LoginPage.jsx"    data-presets="react"></script>
+  <script type="text/babel" src="PAM KPI Reporting-3/components/DashboardScreen.jsx" data-presets="react"></script>
+  <script type="text/babel" src="PAM KPI Reporting-3/components/KPIScreen.jsx"    data-presets="react"></script>
+  <script type="text/babel" src="PAM KPI Reporting-3/components/ReportScreen.jsx" data-presets="react"></script>
+  <script type="text/babel" src="PAM KPI Reporting-3/components/ApprovalScreen.jsx" data-presets="react"></script>
+
+  <!-- App -->
+  <script type="text/babel" data-presets="react">
+
+    const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "defaultRole": "assignee_gbr",
+      "sidebarCollapsed": false
+    }/*EDITMODE-END*/;
+
+    function App() {
+      const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+      const [screen,           setScreen]           = React.useState('dashboard');
+      const [user,             setUser]             = React.useState(null);
+      const [roleId,           setRoleId]           = React.useState(t.defaultRole || 'assignee_gbr');
+      const [kpis,             setKpis]             = React.useState(INITIAL_KPIS);
+      const [reports,          setReports]          = React.useState(INITIAL_REPORTS);
+      const [detailKPI,        setDetailKPI]        = React.useState(null);
+      const [detailReport,     setDetailReport]     = React.useState(null);
+      const [sidebarCollapsed, setSidebarCollapsed] = React.useState(t.sidebarCollapsed || false);
+
+      function handleLogin(userId) {
+        const u = DEMO_USERS[userId];
+        if (!u) return;
+        setUser(u);
+        setRoleId(u.role);
+        setScreen('dashboard');
+      }
+
+      function handleLogout() {
+        setUser(null);
+        setScreen('dashboard');
+      }
+
+      function navigate(screenId) {
+        setScreen(screenId);
+      }
+
+      // Count items the current role can approve (for badge)
+      const pendingCount = React.useMemo(() => {
+        if (!roleId) return 0;
+        const kpiPending = kpis.filter(k => canApproveKPI(roleId, k.status, k.div)).length;
+        const rptPending = reports.filter(r => {
+          const kpi = kpis.find(k => k.id === r.kpiId);
+          return kpi && canApproveKPI(roleId, r.status, kpi.div);
+        }).length;
+        return kpiPending + rptPending;
+      }, [kpis, reports, roleId]);
+
+      function renderScreen() {
+        switch (screen) {
+          case 'dashboard':
+            return (
+              <DashboardScreen
+                kpis={kpis} reports={reports}
+                role={roleId} onNavigate={navigate}
+              />
+            );
+          case 'kpi':
+            return (
+              <KPIScreen
+                kpis={kpis} setKpis={setKpis}
+                role={roleId} onNavigate={navigate}
+                setDetailKPI={setDetailKPI}
+              />
+            );
+          case 'kpi_form':
+            return (
+              <KPIFormScreen
+                kpi={detailKPI} kpis={kpis} setKpis={setKpis}
+                role={roleId} user={user} onNavigate={navigate}
+              />
+            );
+          case 'report':
+            return (
+              <ReportScreen
+                kpis={kpis} reports={reports} setReports={setReports}
+                role={roleId} user={user} onNavigate={navigate}
+                setDetailReport={setDetailReport}
+              />
+            );
+          case 'report_detail':
+            return detailReport ? (
+              <ReportDetailScreen
+                reportData={detailReport} kpis={kpis}
+                reports={reports} setReports={setReports}
+                role={roleId} user={user} onNavigate={navigate}
+              />
+            ) : null;
+          case 'approval':
+            return (
+              <ApprovalScreen
+                kpis={kpis} setKpis={setKpis}
+                reports={reports} setReports={setReports}
+                role={roleId} user={user} onNavigate={navigate}
+                setDetailKPI={setDetailKPI}
+                setDetailReport={setDetailReport}
+              />
+            );
+          default:
+            return (
+              <DashboardScreen
+                kpis={kpis} reports={reports}
+                role={roleId} onNavigate={navigate}
+              />
+            );
+        }
+      }
+
+      if (!user) {
+        return <LoginPage onLogin={handleLogin} />;
+      }
+
+      return (
+        <>
+          <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+            <Sidebar
+              screen={screen}
+              onNavigate={navigate}
+              user={user}
+              role={roleId}
+              pendingCount={pendingCount}
+              collapsed={sidebarCollapsed}
+              onToggle={() => setSidebarCollapsed(v => !v)}
+            />
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <Header
+                screen={screen}
+                user={user}
+                role={roleId}
+                onLogout={handleLogout}
+                onNavigate={navigate}
+              />
+              <div
+                className="screen-enter"
+                key={screen}
+                style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+              >
+                {renderScreen()}
+              </div>
+            </div>
+          </div>
+
+          <TweaksPanel title="PAM KPI · Tweaks">
+            <TweakSection label="บทบาท (Role)" />
+            <TweakSelect
+              label="เปลี่ยน Role ผู้ใช้"
+              options={Object.entries(ROLES).map(([k, v]) => ({
+                value: k,
+                label: v.short + (v.div ? ' · ' + v.div : ' · ฝบร.'),
+              }))}
+              value={roleId}
+              onChange={v => {
+                setRoleId(v);
+                setUser(DEMO_USERS[v]);
+                setScreen('dashboard');
+                setTweak('defaultRole', v);
+              }}
+            />
+            <TweakSection label="เลย์เอาต์" />
+            <TweakToggle
+              label="ย่อ Sidebar"
+              value={sidebarCollapsed}
+              onChange={v => { setSidebarCollapsed(v); setTweak('sidebarCollapsed', v); }}
+            />
+          </TweaksPanel>
+        </>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

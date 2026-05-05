@@ -1,0 +1,176 @@
+import type { KpiItem, MonthlyReport, UserProfile } from "./types";
+import { canApprove } from "./workflow";
+
+export const seedUsers: UserProfile[] = [
+  { id: "u-director", employeeId: "director", name: "นายวิชัย สุวรรณภูมิ", initial: "ว", role: "department_director", division: null, title: "ผู้อำนวยการฝ่าย ฝบร." },
+  { id: "u-consolidator", employeeId: "consolidator", name: "นางสาวพรทิพย์ มงคล", initial: "พ", role: "consolidator", division: null, title: "ผู้รวบรวมส่งผู้บริหาร / เลขาฝ่าย" },
+  { id: "u-divhead-gbp", employeeId: "divhead_gbp", name: "นายธนากร อินทรชิต", initial: "ธ", role: "division_director", division: "กบผ.", title: "ผอ.กอง กบผ." },
+  { id: "u-divhead-gbr", employeeId: "divhead_gbr", name: "นายสุรชัย วงศ์สุวรรณ", initial: "ส", role: "division_director", division: "กบร.", title: "ผอ.กอง กบร." },
+  { id: "u-divhead-gbk", employeeId: "divhead_gbc", name: "นางสาวอรุณี เพชรพลาย", initial: "อ", role: "division_director", division: "กบค.", title: "ผอ.กอง กบค." },
+  { id: "u-assignee-gbp", employeeId: "assignee_gbp", name: "นายกิตติ รักษาวงศ์", initial: "ก", role: "assignee", division: "กบผ.", title: "ผู้จัดทำข้อมูล กบผ." },
+  { id: "u-assignee-gbr", employeeId: "assignee_gbr", name: "นายสมชาย ใจดี", initial: "ส", role: "assignee", division: "กบร.", title: "ผู้จัดทำข้อมูล กบร." },
+  { id: "u-assignee-gbk", employeeId: "assignee_gbc", name: "นางวิภา ทองดี", initial: "ว", role: "assignee", division: "กบค.", title: "ผู้จัดทำข้อมูล กบค." },
+  { id: "u-staff-gbr", employeeId: "staff_gbr", name: "นายประยุทธ์ แสงแก้ว", initial: "ป", role: "division_staff", division: "กบร.", title: "พนักงานทั่วไป กบร." },
+];
+
+export const seedKpis: KpiItem[] = [
+  {
+    id: "kpi-gbp-001", code: "กบผ.-001", division: "กบผ.", category: "ความปลอดภัย",
+    criterion: "อัตราการตอบสนองต่อเหตุขัดข้องระบบผลิต",
+    definition: "วัดเวลาตอบสนองเฉลี่ยต่อเหตุขัดข้องในระบบผลิตไฟฟ้า ภายใน 2 ชั่วโมงหลังจากได้รับแจ้ง",
+    unit: "%", weight: 20,
+    targets: { 1: 70, 2: 80, 3: 90, 4: 95, 5: 98 },
+    primaryOwner: "นายกิตติ รักษาวงศ์", coOwners: [],
+    initiative: "แผนการบำรุงรักษาเชิงป้องกัน 2569",
+    status: "approved", updatedAt: "2569-02-05",
+    approvalLogs: [
+      { id: "log-1", actorId: "u-assignee-gbp", actorName: "นายกิตติ รักษาวงศ์", actorRole: "assignee", action: "submit", fromStatus: "draft", toStatus: "pending_l1", createdAt: "2569-02-02" },
+      { id: "log-2", actorId: "u-divhead-gbp", actorName: "นายธนากร อินทรชิต", actorRole: "division_director", action: "approve", fromStatus: "pending_l1", toStatus: "pending_l2", createdAt: "2569-02-03" },
+      { id: "log-3", actorId: "u-consolidator", actorName: "นางสาวพรทิพย์ มงคล", actorRole: "consolidator", action: "approve", fromStatus: "pending_l2", toStatus: "pending_l3", createdAt: "2569-02-04" },
+      { id: "log-4", actorId: "u-director", actorName: "นายวิชัย สุวรรณภูมิ", actorRole: "department_director", action: "approve", fromStatus: "pending_l3", toStatus: "approved", createdAt: "2569-02-05" },
+    ],
+  },
+  {
+    id: "kpi-gbp-002", code: "กบผ.-002", division: "กบผ.", category: "การบำรุงรักษา",
+    criterion: "จำนวนงานบำรุงรักษาตามแผนที่แล้วเสร็จ",
+    definition: "วัดสัดส่วนงานบำรุงรักษาที่ดำเนินการแล้วเสร็จตามแผนประจำปีที่กำหนดไว้ล่วงหน้า",
+    unit: "%", weight: 15,
+    targets: { 1: 60, 2: 70, 3: 80, 4: 90, 5: 95 },
+    primaryOwner: "นายกิตติ รักษาวงศ์", coOwners: [],
+    initiative: "โครงการ PM ครบ 100%",
+    status: "approved", updatedAt: "2569-02-05",
+    approvalLogs: [
+      { id: "log-5", actorId: "u-assignee-gbp", actorName: "นายกิตติ รักษาวงศ์", actorRole: "assignee", action: "submit", fromStatus: "draft", toStatus: "pending_l1", createdAt: "2569-02-02" },
+      { id: "log-6", actorId: "u-divhead-gbp", actorName: "นายธนากร อินทรชิต", actorRole: "division_director", action: "approve", fromStatus: "pending_l1", toStatus: "pending_l2", createdAt: "2569-02-03" },
+      { id: "log-7", actorId: "u-consolidator", actorName: "นางสาวพรทิพย์ มงคล", actorRole: "consolidator", action: "approve", fromStatus: "pending_l2", toStatus: "pending_l3", createdAt: "2569-02-04" },
+      { id: "log-8", actorId: "u-director", actorName: "นายวิชัย สุวรรณภูมิ", actorRole: "department_director", action: "approve", fromStatus: "pending_l3", toStatus: "approved", createdAt: "2569-02-05" },
+    ],
+  },
+  {
+    id: "kpi-gbr-001", code: "กบร.-001", division: "กบร.", category: "ประสิทธิภาพ",
+    criterion: "ความพร้อมใช้งานของระบบจำหน่ายไฟฟ้า",
+    definition: "วัดสัดส่วนเวลาที่ระบบจำหน่ายไฟฟ้าพร้อมใช้งานได้อย่างปกติต่อเวลาทั้งหมดในเดือนนั้น",
+    unit: "%", weight: 25,
+    targets: { 1: 90, 2: 93, 3: 95, 4: 97, 5: 99 },
+    primaryOwner: "นายสมชาย ใจดี", coOwners: ["นายประยุทธ์ แสงแก้ว"],
+    initiative: "โครงการยกระดับความเชื่อถือได้ระบบไฟฟ้า",
+    status: "approved", updatedAt: "2569-02-05",
+    approvalLogs: [
+      { id: "log-9", actorId: "u-assignee-gbr", actorName: "นายสมชาย ใจดี", actorRole: "assignee", action: "submit", fromStatus: "draft", toStatus: "pending_l1", createdAt: "2569-02-02" },
+      { id: "log-10", actorId: "u-divhead-gbr", actorName: "นายสุรชัย วงศ์สุวรรณ", actorRole: "division_director", action: "approve", fromStatus: "pending_l1", toStatus: "pending_l2", createdAt: "2569-02-03" },
+      { id: "log-11", actorId: "u-consolidator", actorName: "นางสาวพรทิพย์ มงคล", actorRole: "consolidator", action: "approve", fromStatus: "pending_l2", toStatus: "pending_l3", createdAt: "2569-02-04" },
+      { id: "log-12", actorId: "u-director", actorName: "นายวิชัย สุวรรณภูมิ", actorRole: "department_director", action: "approve", fromStatus: "pending_l3", toStatus: "approved", createdAt: "2569-02-05" },
+    ],
+  },
+  {
+    id: "kpi-gbr-002", code: "กบร.-002", division: "กบร.", category: "ประสิทธิภาพ",
+    criterion: "อัตราการลดการสูญเสียพลังงานในระบบจำหน่าย",
+    definition: "วัดอัตราลดลงของพลังงานสูญเสียในระบบจำหน่ายเปรียบเทียบกับช่วงเดียวกันของปีก่อน",
+    unit: "%", weight: 20,
+    targets: { 1: 2, 2: 3, 3: 4, 4: 5, 5: 7 },
+    primaryOwner: "นายสมชาย ใจดี", coOwners: [],
+    initiative: "โครงการลดพลังงานสูญเสีย 2569",
+    status: "pending_l1", updatedAt: "2569-05-02",
+    approvalLogs: [
+      { id: "log-13", actorId: "u-assignee-gbr", actorName: "นายสมชาย ใจดี", actorRole: "assignee", action: "submit", fromStatus: "draft", toStatus: "pending_l1", createdAt: "2569-05-02" },
+    ],
+  },
+  {
+    id: "kpi-gbr-003", code: "กบร.-003", division: "กบร.", category: "การบำรุงรักษา",
+    criterion: "จำนวนสินทรัพย์ระบบไฟฟ้าที่ได้รับการตรวจสอบ",
+    definition: "นับจำนวนสินทรัพย์ระบบไฟฟ้าที่ได้รับการตรวจสอบสภาพตามแผนประจำปี",
+    unit: "ชิ้น", weight: 10,
+    targets: { 1: 50, 2: 80, 3: 120, 4: 160, 5: 200 },
+    primaryOwner: "นายสมชาย ใจดี", coOwners: [],
+    initiative: "แผนตรวจสอบสินทรัพย์ประจำปี",
+    status: "revision_requested", updatedAt: "2569-04-22",
+    approvalLogs: [
+      { id: "log-14", actorId: "u-assignee-gbr", actorName: "นายสมชาย ใจดี", actorRole: "assignee", action: "submit", fromStatus: "draft", toStatus: "pending_l1", createdAt: "2569-04-20" },
+      { id: "log-15", actorId: "u-divhead-gbr", actorName: "นายสุรชัย วงศ์สุวรรณ", actorRole: "division_director", action: "revise", fromStatus: "pending_l1", toStatus: "revision_requested", reason: "กรุณาปรับเป้าหมายระดับ 5 ให้สอดคล้องกับกำลังของบุคลากร และเพิ่มแผนปฏิบัติการให้ชัดเจน", createdAt: "2569-04-22" },
+    ],
+  },
+  {
+    id: "kpi-gbk-001", code: "กบค.-001", division: "กบค.", category: "ประสิทธิภาพ",
+    criterion: "ความพร้อมใช้งานของเครื่องจักรกลหลักในระบบ",
+    definition: "วัดสัดส่วนเวลาที่เครื่องจักรกลหลักพร้อมใช้งานได้ต่อเวลาทั้งหมด",
+    unit: "%", weight: 25,
+    targets: { 1: 85, 2: 88, 3: 91, 4: 94, 5: 97 },
+    primaryOwner: "นางวิภา ทองดี", coOwners: [],
+    initiative: "โครงการเพิ่มประสิทธิภาพเครื่องจักร",
+    status: "pending_l2", updatedAt: "2569-05-02",
+    approvalLogs: [
+      { id: "log-16", actorId: "u-assignee-gbk", actorName: "นางวิภา ทองดี", actorRole: "assignee", action: "submit", fromStatus: "draft", toStatus: "pending_l1", createdAt: "2569-05-01" },
+      { id: "log-17", actorId: "u-divhead-gbk", actorName: "นางสาวอรุณี เพชรพลาย", actorRole: "division_director", action: "approve", fromStatus: "pending_l1", toStatus: "pending_l2", createdAt: "2569-05-02" },
+    ],
+  },
+  {
+    id: "kpi-gbk-002", code: "กบค.-002", division: "กบค.", category: "ความปลอดภัย",
+    criterion: "จำนวนเหตุขัดข้องเครื่องกลที่ป้องกันได้",
+    definition: "นับจำนวนเหตุขัดข้องของเครื่องจักรกลที่เกิดขึ้นและสามารถป้องกันได้ด้วยการบำรุงรักษาเชิงป้องกัน (ต้องการให้น้อยลง)",
+    unit: "ครั้ง", weight: 15,
+    targets: { 1: 10, 2: 8, 3: 5, 4: 3, 5: 0 },
+    primaryOwner: "นางวิภา ทองดี", coOwners: [],
+    initiative: "โครงการ Zero Breakdown",
+    status: "draft", updatedAt: "2569-05-03",
+    approvalLogs: [],
+  },
+];
+
+export const seedReports: MonthlyReport[] = [
+  {
+    id: "rpt-gbr-001-04", kpiId: "kpi-gbr-001", month: 4, year: 2569, division: "กบร.",
+    actual: 96.5, scoreLevel: 4, status: "approved",
+    performanceSummary: "ระบบจำหน่ายไฟฟ้าทำงานได้ปกติตลอดเดือน มีการซ่อมบำรุงตามแผนครบถ้วน ส่งผลให้ความพร้อมใช้งานสูงถึง 96.5%",
+    level4Action: "เร่งโครงการเปลี่ยนอุปกรณ์เก่าในสาย 3 เส้นหลัก เพื่อลดโอกาสเกิดเหตุขัดข้องในช่วงฤดูร้อน",
+    obstacles: "", correctivePlan: "",
+    approvalLogs: [
+      { id: "rlog-1", actorId: "u-assignee-gbr", actorName: "นายสมชาย ใจดี", actorRole: "assignee", action: "submit", fromStatus: "draft", toStatus: "pending_l1", createdAt: "2569-05-05" },
+      { id: "rlog-2", actorId: "u-divhead-gbr", actorName: "นายสุรชัย วงศ์สุวรรณ", actorRole: "division_director", action: "approve", fromStatus: "pending_l1", toStatus: "pending_l2", createdAt: "2569-05-06" },
+      { id: "rlog-3", actorId: "u-consolidator", actorName: "นางสาวพรทิพย์ มงคล", actorRole: "consolidator", action: "approve", fromStatus: "pending_l2", toStatus: "pending_l3", createdAt: "2569-05-07" },
+      { id: "rlog-4", actorId: "u-director", actorName: "นายวิชัย สุวรรณภูมิ", actorRole: "department_director", action: "approve", fromStatus: "pending_l3", toStatus: "approved", createdAt: "2569-05-08" },
+    ],
+    updatedAt: "2569-05-08",
+  },
+  {
+    id: "rpt-gbr-001-05", kpiId: "kpi-gbr-001", month: 5, year: 2569, division: "กบร.",
+    actual: null, scoreLevel: 0, status: "draft",
+    performanceSummary: "", level4Action: "", obstacles: "", correctivePlan: "",
+    approvalLogs: [], updatedAt: "2569-05-03",
+  },
+  {
+    id: "rpt-gbp-001-04", kpiId: "kpi-gbp-001", month: 4, year: 2569, division: "กบผ.",
+    actual: 97, scoreLevel: 4, status: "approved",
+    performanceSummary: "ทีมงานตอบสนองต่อเหตุขัดข้องทั้งหมด 12 ครั้งในเดือนเมษายน ภายในเวลาเฉลี่ย 47 นาที",
+    level4Action: "จัดทำแผนเสริมกำลังทีมฉุกเฉินในช่วงเวลา 00:00-06:00 น.", obstacles: "", correctivePlan: "",
+    approvalLogs: [
+      { id: "rlog-5", actorId: "u-assignee-gbp", actorName: "นายกิตติ รักษาวงศ์", actorRole: "assignee", action: "submit", fromStatus: "draft", toStatus: "pending_l1", createdAt: "2569-05-05" },
+      { id: "rlog-6", actorId: "u-divhead-gbp", actorName: "นายธนากร อินทรชิต", actorRole: "division_director", action: "approve", fromStatus: "pending_l1", toStatus: "pending_l2", createdAt: "2569-05-06" },
+      { id: "rlog-7", actorId: "u-consolidator", actorName: "นางสาวพรทิพย์ มงคล", actorRole: "consolidator", action: "approve", fromStatus: "pending_l2", toStatus: "pending_l3", createdAt: "2569-05-07" },
+      { id: "rlog-8", actorId: "u-director", actorName: "นายวิชัย สุวรรณภูมิ", actorRole: "department_director", action: "approve", fromStatus: "pending_l3", toStatus: "approved", createdAt: "2569-05-08" },
+    ],
+    updatedAt: "2569-05-08",
+  },
+  {
+    id: "rpt-gbk-001-04", kpiId: "kpi-gbk-001", month: 4, year: 2569, division: "กบค.",
+    actual: 93.8, scoreLevel: 3, status: "pending_l1",
+    performanceSummary: "เครื่องจักรกลหลักมีความพร้อมใช้งาน 93.8% มีการหยุดซ่อม 2 ครั้ง รวม 16 ชั่วโมง",
+    level4Action: "",
+    obstacles: "เครื่องสูบน้ำหลักหน่วยที่ 3 มีการรั่วซึมของซีลกันน้ำ ต้องหยุดซ่อม 8 ชั่วโมง",
+    correctivePlan: "สั่งซื้อชิ้นส่วนอะไหล่สำรองไว้ล่วงหน้า และจัดทำแผนตรวจสอบซีลทุก 3 เดือน",
+    approvalLogs: [
+      { id: "rlog-9", actorId: "u-assignee-gbk", actorName: "นางวิภา ทองดี", actorRole: "assignee", action: "submit", fromStatus: "draft", toStatus: "pending_l1", createdAt: "2569-05-04" },
+    ],
+    updatedAt: "2569-05-04",
+  },
+];
+
+export function countPendingTasks(
+  user: UserProfile,
+  kpis: KpiItem[],
+  reports: MonthlyReport[],
+): number {
+  return [
+    ...kpis.filter((item) => canApprove(user, item)),
+    ...reports.filter((item) => canApprove(user, item)),
+  ].length;
+}
