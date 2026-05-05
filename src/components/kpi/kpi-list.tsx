@@ -13,7 +13,9 @@ import { DIVISIONS } from "@/lib/workflow";
 import { useApp } from "@/providers/app-provider";
 import { Edit, Eye, Plus, Search } from "lucide-react";
 
-const STATUS_FILTERS: Array<{ value: "all" | ApprovalStatus; label: string }> = [
+type StatusFilterValue = "all" | ApprovalStatus;
+
+const STATUS_FILTERS: Array<{ value: StatusFilterValue; label: string }> = [
   { value: "all", label: "ทั้งหมด" },
   { value: "draft", label: "ฉบับร่าง" },
   { value: "pending_l1", label: "รอ ผอ.กอง" },
@@ -38,7 +40,7 @@ export function KpiList() {
   const { currentUser, visibleKpis, canEdit } = useApp();
   const [query, setQuery] = useState("");
   const [division, setDivision] = useState<"all" | DivisionCode>("all");
-  const [status, setStatus] = useState<"all" | ApprovalStatus>("all");
+  const [status, setStatus] = useState<StatusFilterValue>("all");
 
   const isAssignee = currentUser?.role === "assignee";
 
@@ -47,11 +49,10 @@ export function KpiList() {
     ...DIVISIONS.map((d) => ({ key: d, label: d })),
   ];
 
-  const filtered = useMemo(() => {
+  const scopedKpis = useMemo(() => {
     const text = query.trim().toLowerCase();
     return visibleKpis.filter((kpi) => {
       if (division !== "all" && kpi.division !== division) return false;
-      if (status !== "all" && kpi.status !== status) return false;
       if (
         text &&
         !kpi.criterion.toLowerCase().includes(text) &&
@@ -61,7 +62,30 @@ export function KpiList() {
       }
       return true;
     });
-  }, [division, query, status, visibleKpis]);
+  }, [division, query, visibleKpis]);
+
+  const statusCounts = useMemo<Record<StatusFilterValue, number>>(() => {
+    const counts: Record<StatusFilterValue, number> = {
+      all: scopedKpis.length,
+      draft: 0,
+      pending_l1: 0,
+      pending_l2: 0,
+      pending_l3: 0,
+      approved: 0,
+      revision_requested: 0,
+    };
+
+    scopedKpis.forEach((kpi) => {
+      counts[kpi.status] += 1;
+    });
+
+    return counts;
+  }, [scopedKpis]);
+
+  const filtered = useMemo(() => {
+    if (status === "all") return scopedKpis;
+    return scopedKpis.filter((kpi) => kpi.status === status);
+  }, [scopedKpis, status]);
 
   return (
     <div className="space-y-5">
@@ -102,20 +126,19 @@ export function KpiList() {
         )}
       </div>
 
-      {/* Status filter chips */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        {STATUS_FILTERS.map((item) => (
-          <Pill
-            key={item.value}
-            active={status === item.value}
-            onClick={() => setStatus(item.value)}
-          >
-            {item.label}
-          </Pill>
-        ))}
-        <span className="ml-2 text-[12px] leading-[30px] text-slate-400">
-          {filtered.length} รายการ
-        </span>
+      {/* Status filter */}
+      <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-slate-50/80 p-1 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+        <div className="flex items-center gap-1 overflow-x-auto">
+          {STATUS_FILTERS.map((item) => (
+            <StatusSegment
+              key={item.value}
+              active={status === item.value}
+              count={statusCounts[item.value]}
+              label={item.label}
+              onClick={() => setStatus(item.value)}
+            />
+          ))}
+        </div>
       </div>
 
       {/* Table card */}
@@ -213,6 +236,46 @@ export function KpiList() {
         </table>
       </div>
     </div>
+  );
+}
+
+function StatusSegment({
+  active,
+  count,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  count: number;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        "group flex min-h-9 shrink-0 items-center gap-2 rounded-lg px-3 text-[12px] font-medium transition-all focus-visible:ring-2 focus-visible:ring-purple-200 focus-visible:outline-none",
+        active
+          ? "bg-white text-purple-700 shadow-sm ring-1 ring-purple-100"
+          : "text-slate-500 hover:bg-slate-50 hover:text-slate-800",
+      )}
+    >
+      <span className="whitespace-nowrap">{label}</span>
+      <span
+        className={cn(
+          "min-w-5 rounded-full px-1.5 py-0.5 text-center font-mono text-[11px] leading-none transition-colors",
+          active
+            ? "bg-purple-50 text-purple-700"
+            : count > 0
+              ? "bg-slate-100 text-slate-500 group-hover:bg-white"
+              : "bg-slate-50 text-slate-300",
+        )}
+      >
+        {count}
+      </span>
+    </button>
   );
 }
 
