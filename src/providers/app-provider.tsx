@@ -68,7 +68,7 @@ type AppContextValue = {
 
 const AppContext = createContext<AppContextValue | null>(null);
 
-const STORAGE_KEY = "pam-kpi-claude-state-v2569";
+const STORAGE_KEY = "pam-kpi-claude-state-v2569-dashboard-scores";
 
 type StoredState = {
   currentUserId: string | null;
