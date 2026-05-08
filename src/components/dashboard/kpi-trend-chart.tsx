@@ -2,6 +2,10 @@
 
 import type { DashboardDivisionTrend } from "@/lib/dashboard-analytics";
 
+type ScoredTrendPoint = DashboardDivisionTrend["points"][number] & {
+  index: number;
+};
+
 const chartW = 560;
 const chartH = 112;
 const padL = 34;
@@ -20,18 +24,40 @@ function yAt(value: number) {
   return padT + innerH - (clamped / 100) * innerH;
 }
 
-function pathFor(values: number[]) {
-  return values
+function pathFor(points: ScoredTrendPoint[], count: number) {
+  return points
     .map(
-      (value, index) =>
-        `${index === 0 ? "M" : "L"} ${xAt(index, values.length)} ${yAt(value)}`,
+      (point, index) =>
+        `${index === 0 ? "M" : "L"} ${xAt(point.index, count)} ${yAt(point.score)}`,
     )
     .join(" ");
 }
 
-function areaFor(values: number[]) {
-  const line = pathFor(values);
-  return `${line} L ${xAt(values.length - 1, values.length)} ${padT + innerH} L ${xAt(0, values.length)} ${padT + innerH} Z`;
+function areaFor(points: ScoredTrendPoint[], count: number) {
+  const line = pathFor(points, count);
+  const firstPoint = points[0];
+  const lastPoint = points.at(-1);
+  if (!firstPoint || !lastPoint) return "";
+  return `${line} L ${xAt(lastPoint.index, count)} ${padT + innerH} L ${xAt(firstPoint.index, count)} ${padT + innerH} Z`;
+}
+
+function scoredSegments(points: DashboardDivisionTrend["points"]) {
+  const segments: ScoredTrendPoint[][] = [];
+
+  points.forEach((point, index) => {
+    if (!point.reportCount) return;
+    const current = segments.at(-1);
+    const nextPoint = { ...point, index };
+
+    if (!current || current.at(-1)?.index !== index - 1) {
+      segments.push([nextPoint]);
+      return;
+    }
+
+    current.push(nextPoint);
+  });
+
+  return segments;
 }
 
 export function KpiTrendChart({
@@ -100,44 +126,59 @@ export function KpiTrendChart({
         ))}
 
         {trends.map((trend) => {
-          const values = trend.points.map((point) => point.score);
-          const lastValue = values.at(-1) ?? 0;
-          const lastX = xAt(values.length - 1, values.length);
-          const lastY = yAt(lastValue);
+          const segments = scoredSegments(trend.points);
+          const scoredPoints = segments.flat();
+          const lastPoint = scoredPoints.at(-1);
 
           return (
             <g key={trend.division}>
-              <path d={areaFor(values)} fill={trend.color} opacity="0.06" />
-              <path
-                d={pathFor(values)}
-                fill="none"
-                stroke={trend.color}
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              {values.map((value, index) => (
+              {segments.map((segment) => (
+                <g key={`${trend.division}-${segment[0]?.index}`}>
+                  {segment.length > 1 && (
+                    <>
+                      <path
+                        d={areaFor(segment, trend.points.length)}
+                        fill={trend.color}
+                        opacity="0.06"
+                      />
+                      <path
+                        d={pathFor(segment, trend.points.length)}
+                        fill="none"
+                        stroke={trend.color}
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </>
+                  )}
+                </g>
+              ))}
+              {scoredPoints.map((point) => (
                 <circle
-                  key={`${trend.division}-${index}`}
-                  cx={xAt(index, values.length)}
-                  cy={yAt(value)}
-                  r={index === values.length - 1 ? 4 : 2.5}
+                  key={`${trend.division}-${point.index}`}
+                  cx={xAt(point.index, trend.points.length)}
+                  cy={yAt(point.score)}
+                  r={point.index === lastPoint?.index ? 4 : 2.5}
                   fill={trend.color}
                   stroke="#FFFFFF"
                   strokeWidth="1.5"
-                  opacity={trend.points[index]?.reportCount ? 1 : 0.35}
                 />
               ))}
-              <text
-                x={Math.min(chartW - 17, lastX + 7)}
-                y={lastY + 3}
-                fontSize="10"
-                fontWeight="700"
-                fill={trend.color}
-                fontFamily="IBM Plex Mono"
-              >
-                {lastValue}%
-              </text>
+              {lastPoint && (
+                <text
+                  x={Math.min(
+                    chartW - 17,
+                    xAt(lastPoint.index, trend.points.length) + 7,
+                  )}
+                  y={yAt(lastPoint.score) + 3}
+                  fontSize="10"
+                  fontWeight="700"
+                  fill={trend.color}
+                  fontFamily="IBM Plex Mono"
+                >
+                  {lastPoint.score}%
+                </text>
+              )}
             </g>
           );
         })}

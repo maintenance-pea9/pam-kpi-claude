@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { buildDashboardAnalytics } from "./dashboard-analytics.ts";
-import type { KpiItem, MonthlyReport } from "./types.ts";
+import type { ApprovalStatus, KpiItem, MonthlyReport } from "./types.ts";
 
 const baseKpi = {
   definition: "",
@@ -32,23 +32,32 @@ function kpi(
   };
 }
 
-function report(
-  kpiId: string,
-  month: number,
-  scoreLevel: MonthlyReport["scoreLevel"],
+function report({
+  kpiId,
+  month,
+  scoreLevel,
   actual = 90,
   year = 2569,
-  division: MonthlyReport["division"] = "กบผ.",
-): MonthlyReport {
+  division = "กบผ.",
+  status = "approved",
+}: {
+  kpiId: string;
+  month: number;
+  scoreLevel: MonthlyReport["scoreLevel"];
+  actual?: number | null;
+  year?: number;
+  division?: MonthlyReport["division"];
+  status?: ApprovalStatus;
+}): MonthlyReport {
   return {
-    id: `rpt-${kpiId}-${month}`,
+    id: `rpt-${kpiId}-${year}-${String(month).padStart(2, "0")}-${status}`,
     kpiId,
     month,
     year,
     division,
     actual,
     scoreLevel,
-    status: "approved",
+    status,
     performanceSummary: "",
     level4Action: "",
     obstacles: "",
@@ -58,91 +67,147 @@ function report(
   };
 }
 
-test("buildDashboardAnalytics calculates current score and eight-month trend from visible reports", () => {
+test("buildDashboardAnalytics counts only approved monthly reports in the selected month", () => {
   const analytics = buildDashboardAnalytics({
-    kpis: [kpi("kpi-1", "กบผ.", "approved"), kpi("kpi-2", "กบผ.", "pending_l1")],
+    kpis: [
+      kpi("approved-kpi", "กบผ.", "approved"),
+      kpi("pending-kpi-with-approved-report", "กบผ.", "pending_l1"),
+      kpi("approved-kpi-with-pending-report", "กบผ.", "approved"),
+      kpi("draft-kpi-without-report", "กบผ.", "draft"),
+    ],
     reports: [
-      report("kpi-1", 10, 3, 90, 2568),
-      report("kpi-1", 11, 4, 90, 2568),
-      report("kpi-1", 12, 5, 90, 2568),
-      report("kpi-1", 1, 4),
-      report("kpi-1", 2, 4),
-      report("kpi-1", 3, 5),
-      report("kpi-1", 4, 4),
-      report("kpi-1", 5, 5),
-      report("kpi-2", 5, 3),
-      report("hidden-kpi", 5, 1),
+      report({ kpiId: "approved-kpi", month: 5, scoreLevel: 5, actual: 98 }),
+      report({
+        kpiId: "pending-kpi-with-approved-report",
+        month: 5,
+        scoreLevel: 3,
+        actual: 76,
+      }),
+      report({
+        kpiId: "approved-kpi-with-pending-report",
+        month: 5,
+        scoreLevel: 5,
+        actual: 99,
+        status: "pending_l1",
+      }),
+      report({
+        kpiId: "hidden-kpi",
+        month: 5,
+        scoreLevel: 1,
+        actual: 55,
+      }),
     ],
     selectedMonth: 5,
     selectedYear: 2569,
   });
 
+  assert.equal(analytics.totalKpis, 2);
+  assert.equal(analytics.approvedKpis, 2);
+  assert.equal(analytics.pendingKpis, 0);
+  assert.equal(analytics.returnedKpis, 0);
+  assert.equal(analytics.draftKpis, 0);
   assert.equal(analytics.currentScore, 80);
+  assert.equal(analytics.lowScoreReports, 1);
   assert.deepEqual(
-    analytics.trend.map((point) => point.monthLabel),
-    ["ต.ค.", "พ.ย.", "ธ.ค.", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค."],
+    analytics.divisionRows[0].kpis.map((item) => item.id),
+    ["approved-kpi", "pending-kpi-with-approved-report"],
   );
-  assert.equal(analytics.trend.at(-1)?.score, 80);
-  assert.equal(analytics.trend.at(-1)?.reportCount, 2);
 });
 
-test("buildDashboardAnalytics summarizes approval status and creates concise action insights", () => {
+test("buildDashboardAnalytics trend ignores pending and returned monthly reports", () => {
   const analytics = buildDashboardAnalytics({
     kpis: [
-      kpi("approved", "กบผ.", "approved"),
-      kpi("pending", "กบผ.", "pending_l1"),
-      kpi("returned", "กบผ.", "revision_requested"),
-      kpi("draft", "กบผ.", "draft"),
+      kpi("kpi-1", "กบผ.", "approved"),
+      kpi("kpi-2", "กบผ.", "revision_requested"),
     ],
     reports: [
-      report("approved", 5, 5),
-      report("pending", 5, 2),
-      report("returned", 5, 3),
+      report({ kpiId: "kpi-1", month: 4, scoreLevel: 4, actual: 90 }),
+      report({
+        kpiId: "kpi-2",
+        month: 4,
+        scoreLevel: 1,
+        actual: 50,
+        status: "revision_requested",
+      }),
+      report({ kpiId: "kpi-1", month: 5, scoreLevel: 5, actual: 99 }),
+      report({ kpiId: "kpi-2", month: 5, scoreLevel: 3, actual: 77 }),
     ],
     selectedMonth: 5,
     selectedYear: 2569,
   });
 
-  assert.equal(analytics.totalKpis, 4);
-  assert.equal(analytics.approvedKpis, 1);
-  assert.equal(analytics.attentionCount, 4);
-  assert.equal(analytics.insights.length, 3);
-  assert.equal(analytics.insights[0].tone, "danger");
-  assert.match(analytics.insights[0].title, /ส่งกลับแก้ไข/);
-  assert.equal(analytics.insights[2].tone, "warning");
+  const april = analytics.trend.find(
+    (point) => point.month === 4 && point.year === 2569,
+  );
+  const may = analytics.trend.find(
+    (point) => point.month === 5 && point.year === 2569,
+  );
+
+  assert.equal(april?.score, 80);
+  assert.equal(april?.reportCount, 1);
+  assert.equal(may?.score, 80);
+  assert.equal(may?.reportCount, 2);
 });
 
-test("buildDashboardAnalytics creates division trend, status slices, and expandable rows", () => {
+test("buildDashboardAnalytics creates score distribution slices from approved reports", () => {
   const analytics = buildDashboardAnalytics({
     kpis: [
-      kpi("gbp-1", "กบผ.", "approved"),
-      kpi("gbp-2", "กบผ.", "pending_l1"),
-      kpi("gbr-1", "กบร.", "revision_requested"),
+      kpi("level-5", "กบผ.", "draft"),
+      kpi("level-4", "กบผ.", "pending_l1"),
+      kpi("below-target", "กบผ.", "revision_requested"),
+      kpi("no-score", "กบผ.", "approved"),
     ],
     reports: [
-      report("gbp-1", 4, 4, 90),
-      report("gbp-1", 5, 5, 98),
-      report("gbp-2", 5, 3, 76),
-      report("gbr-1", 5, 2, 64, 2569, "กบร."),
+      report({ kpiId: "level-5", month: 5, scoreLevel: 5, actual: 99 }),
+      report({ kpiId: "level-4", month: 5, scoreLevel: 4, actual: 91 }),
+      report({ kpiId: "below-target", month: 5, scoreLevel: 2, actual: 70 }),
+      report({ kpiId: "no-score", month: 5, scoreLevel: 0, actual: null }),
     ],
     selectedMonth: 5,
     selectedYear: 2569,
   });
 
-  assert.deepEqual(
-    analytics.divisionTrends.map((trend) => trend.division),
-    ["กบผ.", "กบร."],
-  );
-  assert.equal(analytics.divisionTrends[0].points.at(-1)?.score, 80);
   assert.equal(
-    analytics.statusSlices.find((slice) => slice.key === "approved")?.count,
+    analytics.statusSlices.find((slice) => slice.key === "level5")?.count,
     1,
   );
   assert.equal(
-    analytics.statusSlices.find((slice) => slice.key === "returned")?.count,
+    analytics.statusSlices.find((slice) => slice.key === "level4")?.count,
     1,
   );
-  assert.equal(analytics.divisionRows[0].avg, 80);
-  assert.equal(analytics.divisionRows[0].delta, 0);
-  assert.equal(analytics.divisionRows[0].kpis[0].latestLevel?.level, 5);
+  assert.equal(
+    analytics.statusSlices.find((slice) => slice.key === "belowTarget")?.count,
+    1,
+  );
+  assert.equal(
+    analytics.statusSlices.find((slice) => slice.key === "noScore")?.count,
+    1,
+  );
+  assert.equal(analytics.attentionCount, 2);
+});
+
+test("buildDashboardAnalytics division summary uses the selected month approved report", () => {
+  const analytics = buildDashboardAnalytics({
+    kpis: [kpi("kpi-1", "กบผ.", "pending_l1")],
+    reports: [
+      report({ kpiId: "kpi-1", month: 4, scoreLevel: 5, actual: 99 }),
+      report({ kpiId: "kpi-1", month: 5, scoreLevel: 2, actual: 65 }),
+      report({ kpiId: "kpi-1", month: 6, scoreLevel: 5, actual: 98 }),
+    ],
+    selectedMonth: 5,
+    selectedYear: 2569,
+  });
+
+  assert.equal(analytics.divisionRows.length, 1);
+  assert.equal(analytics.divisionRows[0].total, 1);
+  assert.equal(analytics.divisionRows[0].lowScore, 1);
+  assert.equal(analytics.divisionRows[0].avg, 40);
+  assert.equal(analytics.divisionRows[0].delta, -60);
+  assert.equal(analytics.divisionRows[0].kpis[0].reportMonth, 5);
+  assert.equal(
+    analytics.divisionRows[0].kpis[0].reportId,
+    "rpt-kpi-1-2569-05-approved",
+  );
+  assert.equal(analytics.divisionRows[0].kpis[0].scoreLevel, 2);
+  assert.equal(analytics.divisionRows[0].kpis[0].actual, 65);
 });
