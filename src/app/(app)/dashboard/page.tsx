@@ -91,7 +91,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="mt-0.5 text-[11px] text-slate-400">
                   {trendStart?.monthLabel} {trendStart?.year} –{" "}
-                  {trendEnd?.monthLabel} {trendEnd?.year} · แสดงตามสิทธิ์การมองเห็น
+                  {trendEnd?.monthLabel} {trendEnd?.year} · เฉพาะรายงานที่อนุมัติแล้ว
                 </div>
               </div>
               <div className="flex items-center gap-1.5">
@@ -121,7 +121,7 @@ export default function DashboardPage() {
           <CardContent className="px-3.5 py-2.5">
             <div className="mb-2">
               <div className="text-[13px] font-semibold text-slate-800">
-                สัดส่วนสถานะ KPI
+                สัดส่วนระดับผลประเมิน
               </div>
               <div className="mt-0.5 text-[11px] text-slate-400">
                 {monthLabel} {selectedYear}
@@ -142,7 +142,7 @@ export default function DashboardPage() {
               สรุปผลการดำเนินงานรายกอง
             </div>
             <div className="mt-0.5 text-xs text-slate-400">
-              คลิกที่แต่ละกองเพื่อดูตัวชี้วัด · {monthLabel} {selectedYear}
+              คลิกที่แต่ละกองเพื่อดูผลรายเดือนที่อนุมัติแล้ว · {monthLabel} {selectedYear}
             </div>
           </div>
           <Link

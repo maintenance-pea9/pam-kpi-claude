@@ -49,7 +49,9 @@ export function StatCards({ stats }: { stats: DashboardStat[] }) {
             >
               {stat.value}
             </span>
-            <span className="text-[13px] text-slate-400">รายการ</span>
+            <span className="text-[13px] text-slate-400">
+              {stat.unit ?? "รายการ"}
+            </span>
           </div>
           <div className="truncate text-[10px] text-slate-400">{stat.sub}</div>
         </div>

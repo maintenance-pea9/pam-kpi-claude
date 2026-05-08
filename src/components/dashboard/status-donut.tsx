@@ -18,8 +18,10 @@ export function StatusDonut({
     const dash = total > 0 ? (slice.count / total) * circumference : 0;
     return [...items, { ...slice, dash, offset: previousOffset }];
   }, []);
-  const approved = slices.find((slice) => slice.key === "approved")?.count ?? 0;
-  const approvedPct = total > 0 ? Math.round((approved / total) * 100) : 0;
+  const level45 = slices
+    .filter((slice) => slice.key === "level5" || slice.key === "level4")
+    .reduce((sum, slice) => sum + slice.count, 0);
+  const level45Pct = total > 0 ? Math.round((level45 / total) * 100) : 0;
 
   return (
     <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center xl:flex-col 2xl:flex-row">
@@ -29,7 +31,7 @@ export function StatusDonut({
           height="98"
           viewBox="0 0 100 100"
           role="img"
-          aria-label="สัดส่วนสถานะ KPI"
+          aria-label="สัดส่วนระดับผลประเมิน KPI"
         >
           <circle
             cx="50"
@@ -63,10 +65,10 @@ export function StatusDonut({
             fill="#1E293B"
             fontFamily="IBM Plex Mono"
           >
-            {approvedPct}%
+            {level45Pct}%
           </text>
           <text x="50" y="59" textAnchor="middle" fontSize="8" fill="#94A3B8">
-            อนุมัติ
+            ระดับ 4-5
           </text>
         </svg>
       </div>

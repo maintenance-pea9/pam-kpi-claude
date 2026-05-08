@@ -22,7 +22,7 @@ export type DashboardDivisionTrend = {
 };
 
 export type DashboardStatusSlice = {
-  key: "approved" | "pending" | "returned" | "draft";
+  key: "level5" | "level4" | "belowTarget" | "noScore";
   label: string;
   count: number;
   color: string;
@@ -30,25 +30,25 @@ export type DashboardStatusSlice = {
 
 export type DashboardDivisionKpiRow = {
   id: string;
+  reportId: string;
   code: string;
   title: string;
   weight: number;
   unit: string;
   status: ApprovalStatus;
-  latestLevel: {
-    level: 0 | 1 | 2 | 3 | 4 | 5;
-    actual: number | null;
-    month: number;
-    year: number;
-  } | null;
+  actual: number | null;
+  scoreLevel: 0 | 1 | 2 | 3 | 4 | 5;
+  reportMonth: number;
+  reportYear: number;
 };
 
 export type DashboardDivisionRow = {
   division: DivisionCode;
   name: string;
   total: number;
-  approved: number;
-  pending: number;
+  level45: number;
+  lowScore: number;
+  noScore: number;
   avg: number;
   previousAvg: number;
   delta: number;
@@ -68,6 +68,7 @@ export type DashboardStat = {
   value: string;
   sub: string;
   tone: Tone;
+  unit?: string;
 };
 
 export type DashboardAnalytics = {
@@ -125,16 +126,6 @@ const DIVISION_COLORS: Record<DivisionCode, string> = {
   "กบค.": "#F59E0B",
 };
 
-const pendingStatuses: ApprovalStatus[] = [
-  "pending_l1",
-  "pending_l2",
-  "pending_l3",
-];
-
-function isPendingStatus(status: ApprovalStatus): boolean {
-  return pendingStatuses.includes(status);
-}
-
 function monthWindow(selectedMonth: number, selectedYear: number, size = 8) {
   return Array.from({ length: size }, (_, index) => {
     const offset = size - index - 1;
@@ -155,33 +146,48 @@ function previousMonth(month: number, year: number) {
   return { month: month - 1, year };
 }
 
-function scoreFromReports(reports: MonthlyReport[]): number {
-  const filledReports = reports.filter((report) => report.actual !== null);
+function hasScoredResult(report: MonthlyReport): boolean {
+  return report.actual !== null && report.scoreLevel > 0;
+}
 
-  if (filledReports.length === 0) {
+function scoreFromReports(reports: MonthlyReport[]): number {
+  const scoredReports = reports.filter(hasScoredResult);
+
+  if (scoredReports.length === 0) {
     return 0;
   }
 
   const averageLevel =
-    filledReports.reduce((sum, report) => sum + report.scoreLevel, 0) /
-    filledReports.length;
+    scoredReports.reduce((sum, report) => sum + report.scoreLevel, 0) /
+    scoredReports.length;
 
   return Math.round(averageLevel * 20);
 }
 
-function countByDivision(kpis: KpiItem[]): Record<DivisionCode, number> {
-  return kpis.reduce(
-    (counts, kpi) => ({
-      ...counts,
-      [kpi.division]: (counts[kpi.division] ?? 0) + 1,
-    }),
-    {} as Record<DivisionCode, number>,
-  );
+function countLevel45(reports: MonthlyReport[]): number {
+  return reports.filter(
+    (report) => hasScoredResult(report) && report.scoreLevel >= 4,
+  ).length;
 }
 
-function divisionList(kpis: KpiItem[]): DivisionCode[] {
-  const visibleDivisions = new Set(kpis.map((kpi) => kpi.division));
-  return DIVISION_ORDER.filter((division) => visibleDivisions.has(division));
+function countLowScore(reports: MonthlyReport[]): number {
+  return reports.filter(
+    (report) =>
+      hasScoredResult(report) && report.scoreLevel > 0 && report.scoreLevel < 4,
+  ).length;
+}
+
+function countNoScore(reports: MonthlyReport[]): number {
+  return reports.filter((report) => !hasScoredResult(report)).length;
+}
+
+function monthMatches(report: MonthlyReport, month: number, year: number) {
+  return report.month === month && report.year === year;
+}
+
+function divisionListFromReports(reports: MonthlyReport[]): DivisionCode[] {
+  const divisions = new Set(reports.map((report) => report.division));
+  return DIVISION_ORDER.filter((division) => divisions.has(division));
 }
 
 function reportsForDivisionMonth(
@@ -196,15 +202,6 @@ function reportsForDivisionMonth(
       report.month === month &&
       report.year === year,
   );
-}
-
-function latestApprovedReport(
-  reports: MonthlyReport[],
-  kpiId: string,
-): MonthlyReport | undefined {
-  return reports
-    .filter((report) => report.kpiId === kpiId && report.status === "approved")
-    .sort((a, b) => b.year * 12 + b.month - (a.year * 12 + a.month))[0];
 }
 
 function buildDivisionTrends({
@@ -230,8 +227,7 @@ function buildDivisionTrends({
       return {
         ...point,
         score: scoreFromReports(divisionReports),
-        reportCount: divisionReports.filter((report) => report.actual !== null)
-          .length,
+        reportCount: divisionReports.filter(hasScoredResult).length,
       };
     }),
   }));
@@ -241,6 +237,7 @@ function buildDivisionRows({
   divisions,
   kpis,
   reports,
+  selectedMonthReports,
   divisionTrends,
   selectedMonth,
   selectedYear,
@@ -248,16 +245,17 @@ function buildDivisionRows({
   divisions: DivisionCode[];
   kpis: KpiItem[];
   reports: MonthlyReport[];
+  selectedMonthReports: MonthlyReport[];
   divisionTrends: DashboardDivisionTrend[];
   selectedMonth: number;
   selectedYear: number;
 }): DashboardDivisionRow[] {
   const previous = previousMonth(selectedMonth, selectedYear);
+  const kpiById = new Map(kpis.map((kpi) => [kpi.id, kpi]));
 
   return divisions.map((division) => {
-    const divisionKpis = kpis.filter((kpi) => kpi.division === division);
-    const selectedReports = reportsForDivisionMonth(
-      reports,
+    const divisionReports = reportsForDivisionMonth(
+      selectedMonthReports,
       division,
       selectedMonth,
       selectedYear,
@@ -268,126 +266,133 @@ function buildDivisionRows({
       previous.month,
       previous.year,
     );
-    const avg = scoreFromReports(selectedReports);
+    const avg = scoreFromReports(divisionReports);
     const previousAvg = scoreFromReports(previousReports);
 
     return {
       division,
       name: DIVISION_NAMES[division],
-      total: divisionKpis.length,
-      approved: divisionKpis.filter((kpi) => kpi.status === "approved").length,
-      pending: divisionKpis.filter((kpi) => isPendingStatus(kpi.status)).length,
+      total: divisionReports.length,
+      level45: countLevel45(divisionReports),
+      lowScore: countLowScore(divisionReports),
+      noScore: countNoScore(divisionReports),
       avg,
       previousAvg,
       delta: avg - previousAvg,
       trend:
         divisionTrends.find((trend) => trend.division === division)?.points ??
         [],
-      kpis: divisionKpis.map((kpi) => {
-        const latestReport = latestApprovedReport(reports, kpi.id);
+      kpis: divisionReports
+        .flatMap((report) => {
+          const kpi = kpiById.get(report.kpiId);
+          if (!kpi) return [];
 
-        return {
-          id: kpi.id,
-          code: kpi.code,
-          title: kpi.criterion,
-          weight: kpi.weight,
-          unit: kpi.unit,
-          status: kpi.status,
-          latestLevel: latestReport
-            ? {
-                level: latestReport.scoreLevel,
-                actual: latestReport.actual,
-                month: latestReport.month,
-                year: latestReport.year,
-              }
-            : null,
-        };
-      }),
+          return [
+            {
+              id: kpi.id,
+              reportId: report.id,
+              code: kpi.code,
+              title: kpi.criterion,
+              weight: kpi.weight,
+              unit: kpi.unit,
+              status: report.status,
+              actual: report.actual,
+              scoreLevel: report.scoreLevel,
+              reportMonth: report.month,
+              reportYear: report.year,
+            },
+          ];
+        })
+        .sort((a, b) => a.code.localeCompare(b.code, "th")),
     };
   });
 }
 
+function buildStatusSlices(reports: MonthlyReport[]): DashboardStatusSlice[] {
+  return [
+    {
+      key: "level5",
+      label: "ระดับ 5",
+      count: reports.filter((report) => report.scoreLevel === 5).length,
+      color: "#16A34A",
+    },
+    {
+      key: "level4",
+      label: "ระดับ 4",
+      count: reports.filter((report) => report.scoreLevel === 4).length,
+      color: "#6D28D9",
+    },
+    {
+      key: "belowTarget",
+      label: "ต่ำกว่าระดับ 4",
+      count: countLowScore(reports),
+      color: "#DC2626",
+    },
+    {
+      key: "noScore",
+      label: "ยังไม่มีคะแนน",
+      count: countNoScore(reports),
+      color: "#94A3B8",
+    },
+  ];
+}
+
 function buildInsights({
-  pendingKpis,
-  returnedKpis,
-  draftKpis,
-  lowScoreReports,
   selectedMonthReports,
-  kpis,
+  lowScoreReports,
+  noScoreReports,
+  level45Reports,
+  currentScore,
 }: {
-  pendingKpis: number;
-  returnedKpis: number;
-  draftKpis: number;
-  lowScoreReports: number;
   selectedMonthReports: MonthlyReport[];
-  kpis: KpiItem[];
+  lowScoreReports: number;
+  noScoreReports: number;
+  level45Reports: number;
+  currentScore: number;
 }): DashboardInsight[] {
-  const divisionCounts = countByDivision(kpis);
-  const busiestDivision = Object.entries(divisionCounts).sort(
-    ([, a], [, b]) => b - a,
-  )[0]?.[0] as DivisionCode | undefined;
-
   const insights: DashboardInsight[] = [];
-
-  if (returnedKpis > 0) {
-    insights.push({
-      title: `ส่งกลับแก้ไข ${returnedKpis} รายการ`,
-      description: "ควรเร่งปรับเกณฑ์หรือแผนดำเนินงานก่อนรอบสรุปผล",
-      tone: "danger",
-      count: returnedKpis,
-    });
-  }
-
-  if (pendingKpis > 0) {
-    insights.push({
-      title: `รออนุมัติ ${pendingKpis} รายการ`,
-      description: "ติดตามลำดับอนุมัติให้ครบก่อนปิดเดือน",
-      tone: "warning",
-      count: pendingKpis,
-    });
-  }
 
   if (lowScoreReports > 0) {
     insights.push({
-      title: `คะแนนต่ำกว่าระดับ 4 จำนวน ${lowScoreReports} รายการ`,
-      description: "ตรวจแผนแก้ไขและอุปสรรคของ KPI ที่ยังต่ำกว่าเป้า",
+      title: `ต่ำกว่าระดับ 4 จำนวน ${lowScoreReports} รายการ`,
+      description: "ตรวจแผนแก้ไขและอุปสรรคของรายงานที่ผลยังต่ำกว่าเป้า",
       tone: "warning",
       count: lowScoreReports,
     });
   }
 
-  if (draftKpis > 0 && insights.length < 3) {
+  if (noScoreReports > 0) {
     insights.push({
-      title: `ฉบับร่าง ${draftKpis} รายการ`,
-      description: "เตรียมส่งเข้ากระบวนการอนุมัติเมื่อข้อมูลครบ",
+      title: `ยังไม่มีคะแนน ${noScoreReports} รายการ`,
+      description: "รายงานได้รับอนุมัติแล้ว แต่ยังไม่มีผลจริงหรือระดับคะแนน",
       tone: "info",
-      count: draftKpis,
+      count: noScoreReports,
+    });
+  }
+
+  if (level45Reports > 0) {
+    insights.push({
+      title: `ระดับ 4-5 จำนวน ${level45Reports} รายการ`,
+      description: "ผลรายเดือนที่อนุมัติแล้วอยู่ในระดับเป้าหมายหรือสูงกว่า",
+      tone: "success",
+      count: level45Reports,
     });
   }
 
   if (insights.length < 3 && selectedMonthReports.length > 0) {
     insights.push({
-      title: "ผลรายเดือนพร้อมสรุป",
-      description: `${selectedMonthReports.length} รายงานมีข้อมูลผลจริงแล้ว`,
-      tone: "success",
+      title: `คะแนนเฉลี่ย ${currentScore}%`,
+      description: "คำนวณจากรายงานประจำเดือนที่อนุมัติแล้วเท่านั้น",
+      tone: currentScore >= 80 ? "success" : currentScore >= 60 ? "warning" : "danger",
       count: selectedMonthReports.length,
-    });
-  }
-
-  if (insights.length < 3 && busiestDivision) {
-    insights.push({
-      title: `${busiestDivision} มี KPI มากที่สุด`,
-      description: "เหมาะสำหรับเริ่มตรวจความครบถ้วนของแผนรายกอง",
-      tone: "info",
-      count: divisionCounts[busiestDivision],
     });
   }
 
   while (insights.length < 3) {
     insights.push({
-      title: "ไม่มีรายการเร่งด่วนเพิ่มเติม",
-      description: "ติดตามผลรายเดือนและสถานะอนุมัติรอบถัดไป",
-      tone: "success",
+      title: "ยังไม่มีผลรายเดือนที่อนุมัติ",
+      description: "เมื่อรายงานประจำเดือนผ่านอนุมัติแล้ว ระบบจะแสดงผลใน Dashboard",
+      tone: "info",
       count: 0,
     });
   }
@@ -402,24 +407,23 @@ export function buildDashboardAnalytics({
   selectedYear,
 }: DashboardAnalyticsInput): DashboardAnalytics {
   const visibleKpiIds = new Set(kpis.map((kpi) => kpi.id));
-  const visibleReports = reports.filter((report) =>
-    visibleKpiIds.has(report.kpiId),
-  );
-  const selectedMonthReports = visibleReports.filter(
+  const visibleApprovedReports = reports.filter(
     (report) =>
-      report.month === selectedMonth && report.year === selectedYear,
+      visibleKpiIds.has(report.kpiId) && report.status === "approved",
+  );
+  const selectedMonthReports = visibleApprovedReports.filter((report) =>
+    monthMatches(report, selectedMonth, selectedYear),
   );
 
   const trend = monthWindow(selectedMonth, selectedYear).map((point) => {
-    const reportsForMonth = visibleReports.filter(
-      (report) => report.month === point.month && report.year === point.year,
+    const reportsForMonth = visibleApprovedReports.filter((report) =>
+      monthMatches(report, point.month, point.year),
     );
 
     return {
       ...point,
       score: scoreFromReports(reportsForMonth),
-      reportCount: reportsForMonth.filter((report) => report.actual !== null)
-        .length,
+      reportCount: reportsForMonth.filter(hasScoredResult).length,
     };
   });
 
@@ -429,52 +433,24 @@ export function buildDashboardAnalytics({
     previousScore === null || previousScore === 0
       ? null
       : currentScore - previousScore;
-  const totalKpis = kpis.length;
-  const approvedKpis = kpis.filter((kpi) => kpi.status === "approved").length;
-  const pendingKpis = kpis.filter((kpi) => isPendingStatus(kpi.status)).length;
-  const returnedKpis = kpis.filter(
-    (kpi) => kpi.status === "revision_requested",
-  ).length;
-  const draftKpis = kpis.filter((kpi) => kpi.status === "draft").length;
-  const lowScoreReports = selectedMonthReports.filter(
-    (report) =>
-      report.actual !== null && report.scoreLevel > 0 && report.scoreLevel < 4,
-  ).length;
-  const attentionCount = pendingKpis + returnedKpis + lowScoreReports;
-  const approvedPct =
-    totalKpis > 0 ? Math.round((approvedKpis / totalKpis) * 100) : 0;
-  const divisions = divisionList(kpis);
+  const totalKpis = selectedMonthReports.length;
+  const approvedKpis = totalKpis;
+  const pendingKpis = 0;
+  const returnedKpis = 0;
+  const draftKpis = 0;
+  const level45Reports = countLevel45(selectedMonthReports);
+  const lowScoreReports = countLowScore(selectedMonthReports);
+  const noScoreReports = countNoScore(selectedMonthReports);
+  const attentionCount = lowScoreReports + noScoreReports;
+  const level45Pct =
+    totalKpis > 0 ? Math.round((level45Reports / totalKpis) * 100) : 0;
+  const trendDivisions = divisionListFromReports(visibleApprovedReports);
+  const rowDivisions = divisionListFromReports(selectedMonthReports);
   const divisionTrends = buildDivisionTrends({
-    divisions,
+    divisions: trendDivisions,
     trendWindow: trend,
-    reports: visibleReports,
+    reports: visibleApprovedReports,
   });
-  const statusSlices: DashboardStatusSlice[] = [
-    {
-      key: "approved",
-      label: "อนุมัติแล้ว",
-      count: approvedKpis,
-      color: "#16A34A",
-    },
-    {
-      key: "pending",
-      label: "รออนุมัติ",
-      count: pendingKpis,
-      color: "#D97706",
-    },
-    {
-      key: "returned",
-      label: "ส่งกลับ",
-      count: returnedKpis,
-      color: "#DC2626",
-    },
-    {
-      key: "draft",
-      label: "ฉบับร่าง",
-      count: draftKpis,
-      color: "#8B5CF6",
-    },
-  ];
 
   return {
     currentScore,
@@ -489,48 +465,52 @@ export function buildDashboardAnalytics({
     attentionCount,
     trend,
     divisionTrends,
-    statusSlices,
+    statusSlices: buildStatusSlices(selectedMonthReports),
     divisionRows: buildDivisionRows({
-      divisions,
+      divisions: rowDivisions,
       kpis,
-      reports: visibleReports,
+      reports: visibleApprovedReports,
+      selectedMonthReports,
       divisionTrends,
       selectedMonth,
       selectedYear,
     }),
     stats: [
       {
-        label: "KPI ทั้งหมด",
+        label: "รายงานอนุมัติแล้ว",
         value: String(totalKpis),
-        sub: `ฉบับร่าง ${draftKpis} รายการ`,
+        sub: "เฉพาะผลรายเดือนที่ผ่านอนุมัติ",
         tone: "info",
       },
       {
-        label: "อนุมัติแล้ว",
-        value: String(approvedKpis),
-        sub: `${approvedPct}% ของทั้งหมด`,
+        label: "คะแนนเฉลี่ย",
+        value: String(currentScore),
+        unit: "%",
+        sub:
+          scoreDelta === null
+            ? "ไม่มีข้อมูลเดือนก่อน"
+            : `${scoreDelta >= 0 ? "+" : ""}${scoreDelta}% จากเดือนก่อน`,
+        tone: currentScore >= 80 ? "success" : currentScore >= 60 ? "warning" : "danger",
+      },
+      {
+        label: "ระดับ 4-5",
+        value: String(level45Reports),
+        sub: `${level45Pct}% ของรายงานอนุมัติ`,
         tone: "success",
       },
       {
-        label: "รออนุมัติ",
-        value: String(pendingKpis),
-        sub: "ต้องการการดำเนินการ",
-        tone: pendingKpis > 0 ? "warning" : "success",
-      },
-      {
-        label: "ส่งกลับแก้ไข",
-        value: String(returnedKpis),
-        sub: "รอการแก้ไข",
-        tone: returnedKpis > 0 ? "danger" : "success",
+        label: "ต้องติดตาม",
+        value: String(lowScoreReports),
+        sub: "ต่ำกว่าระดับ 4",
+        tone: lowScoreReports > 0 ? "warning" : "success",
       },
     ],
     insights: buildInsights({
-      pendingKpis,
-      returnedKpis,
-      draftKpis,
-      lowScoreReports,
       selectedMonthReports,
-      kpis,
+      lowScoreReports,
+      noScoreReports,
+      level45Reports,
+      currentScore,
     }),
   };
 }

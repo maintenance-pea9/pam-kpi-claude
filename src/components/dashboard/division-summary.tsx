@@ -1,21 +1,26 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { DivBadge } from "@/components/shared/div-badge";
 import { LevelBadge } from "@/components/shared/level-badge";
-import { StatusBadge } from "@/components/shared/status-badge";
 import type { DashboardDivisionRow } from "@/lib/dashboard-analytics";
 import { cn } from "@/lib/utils";
 import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 
 export function DivisionSummary({ rows }: { rows: DashboardDivisionRow[] }) {
+  const router = useRouter();
   const [expandedDivision, setExpandedDivision] = useState<string | null>(null);
+
+  const navigateToReport = (reportId: string) => {
+    router.push(`/reports/${reportId}`, { transitionTypes: ["nav-forward"] });
+  };
 
   if (rows.length === 0) {
     return (
       <div className="px-4 py-8 text-center text-[13px] text-slate-400">
-        ยังไม่มี KPI ในสิทธิ์การมองเห็นของผู้ใช้งานนี้
+        ยังไม่มีผลรายเดือนที่อนุมัติแล้วในเดือนที่เลือก
       </div>
     );
   }
@@ -59,8 +64,8 @@ export function DivisionSummary({ rows }: { rows: DashboardDivisionRow[] }) {
                   {row.name}
                 </div>
                 <div className="mt-px truncate text-[10px] text-slate-400">
-                  KPI ทั้งหมด {row.total} รายการ · อนุมัติแล้ว {row.approved} ·
-                  รออนุมัติ {row.pending}
+                  รายงานอนุมัติแล้ว {row.total} รายการ · ระดับ 4-5 {row.level45} ·
+                  ต้องติดตาม {row.lowScore}
                 </div>
               </div>
               <MiniSparkline row={row} />
@@ -88,7 +93,7 @@ export function DivisionSummary({ rows }: { rows: DashboardDivisionRow[] }) {
               <div className="border-t border-purple-100 bg-[#FAF9FF] px-4 py-2.5">
                 {row.kpis.length === 0 ? (
                   <div className="py-6 text-center text-[12px] text-slate-400">
-                    ยังไม่มีตัวชี้วัด
+                    ยังไม่มีผลรายเดือนที่อนุมัติแล้ว
                   </div>
                 ) : (
                   <div className="overflow-x-auto rounded-lg border border-purple-100 bg-white">
@@ -99,9 +104,9 @@ export function DivisionSummary({ rows }: { rows: DashboardDivisionRow[] }) {
                             "รหัส",
                             "ชื่อตัวชี้วัด",
                             "น้ำหนัก",
-                            "สถานะ",
-                            "ระดับล่าสุด",
+                            "ระดับ",
                             "ผลจริง",
+                            "รอบรายงาน",
                             "",
                           ].map((header) => (
                             <th
@@ -116,8 +121,17 @@ export function DivisionSummary({ rows }: { rows: DashboardDivisionRow[] }) {
                       <tbody>
                         {row.kpis.map((kpi) => (
                           <tr
-                            key={kpi.id}
-                            className="transition-colors hover:bg-purple-50/50"
+                            key={kpi.reportId}
+                            role="link"
+                            tabIndex={0}
+                            onClick={() => navigateToReport(kpi.reportId)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                navigateToReport(kpi.reportId);
+                              }
+                            }}
+                            className="cursor-pointer transition-colors hover:bg-purple-50/50 focus:bg-purple-50/50 focus:outline-none"
                           >
                             <td className="border-b border-slate-50 px-3 py-2 font-mono text-[11px] font-semibold whitespace-nowrap text-purple-600">
                               {kpi.code}
@@ -129,11 +143,8 @@ export function DivisionSummary({ rows }: { rows: DashboardDivisionRow[] }) {
                               {kpi.weight}%
                             </td>
                             <td className="border-b border-slate-50 px-3 py-2">
-                              <StatusBadge status={kpi.status} size="sm" />
-                            </td>
-                            <td className="border-b border-slate-50 px-3 py-2">
-                              {kpi.latestLevel ? (
-                                <LevelBadge level={kpi.latestLevel.level} />
+                              {kpi.scoreLevel > 0 ? (
+                                <LevelBadge level={kpi.scoreLevel} />
                               ) : (
                                 <span className="text-[11px] text-slate-300">
                                   —
@@ -141,16 +152,20 @@ export function DivisionSummary({ rows }: { rows: DashboardDivisionRow[] }) {
                               )}
                             </td>
                             <td className="border-b border-slate-50 px-3 py-2 font-mono text-[12px] font-semibold whitespace-nowrap text-slate-700">
-                              {kpi.latestLevel
-                                ? `${kpi.latestLevel.actual ?? "—"} ${kpi.unit}`
-                                : "—"}
+                              {kpi.actual !== null ? `${kpi.actual} ${kpi.unit}` : "—"}
                             </td>
-                            <td className="border-b border-slate-50 px-3 py-2 text-right">
+                            <td className="border-b border-slate-50 px-3 py-2 font-mono text-[11px] whitespace-nowrap text-slate-400">
+                              {kpi.reportMonth}/{kpi.reportYear}
+                            </td>
+                            <td
+                              className="border-b border-slate-50 px-3 py-2 text-right"
+                              onClick={(event) => event.stopPropagation()}
+                            >
                               <Link
-                                href={`/kpi/${kpi.id}`}
+                                href={`/reports/${kpi.reportId}`}
                                 transitionTypes={["nav-forward"]}
                                 className="inline-flex size-6 items-center justify-center rounded-md text-slate-300 hover:bg-purple-100 hover:text-purple-700"
-                                aria-label={`ดูรายละเอียด ${kpi.code}`}
+                                aria-label={`ดูรายงานผล ${kpi.code}`}
                               >
                                 <ChevronRight className="size-4" />
                               </Link>
