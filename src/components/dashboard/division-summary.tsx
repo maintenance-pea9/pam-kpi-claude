@@ -1,134 +1,199 @@
+"use client";
+
+import Link from "next/link";
 import { DivBadge } from "@/components/shared/div-badge";
-import { ProgressBar } from "@/components/shared/progress-bar";
-import type { DivisionCode, KpiItem, MonthlyReport } from "@/lib/types";
-import { divisionLabels } from "@/lib/labels";
-import { DIVISIONS } from "@/lib/workflow";
+import { LevelBadge } from "@/components/shared/level-badge";
+import { StatusBadge } from "@/components/shared/status-badge";
+import type { DashboardDivisionRow } from "@/lib/dashboard-analytics";
+import { cn } from "@/lib/utils";
+import { ChevronRight } from "lucide-react";
+import { useState } from "react";
 
-const HEADERS = [
-  "กอง",
-  "ชื่อกอง",
-  "KPI ทั้งหมด",
-  "อนุมัติแล้ว",
-  "ค่าเฉลี่ย (%)",
-  "ความคืบหน้า",
-];
+export function DivisionSummary({ rows }: { rows: DashboardDivisionRow[] }) {
+  const [expandedDivision, setExpandedDivision] = useState<string | null>(null);
 
-export function DivisionSummary({
-  kpis,
-  reports,
-}: {
-  kpis: KpiItem[];
-  reports: MonthlyReport[];
-}) {
-  const rows = DIVISIONS.map((division: DivisionCode) => {
-    const divisionKpis = kpis.filter((kpi) => kpi.division === division);
-    const divisionReports = reports.filter(
-      (report) => report.division === division,
+  if (rows.length === 0) {
+    return (
+      <div className="px-4 py-8 text-center text-[13px] text-slate-400">
+        ยังไม่มี KPI ในสิทธิ์การมองเห็นของผู้ใช้งานนี้
+      </div>
     );
-    const approved = divisionKpis.filter(
-      (kpi) => kpi.status === "approved",
-    ).length;
-    const filled = divisionReports.filter((report) => report.actual !== null);
-    const avg = filled.length
-      ? Math.round(
-          (filled.reduce((sum, report) => sum + report.scoreLevel, 0) /
-            filled.length) *
-            20,
-        )
-      : 0;
-    return {
-      division,
-      name: divisionLabels[division],
-      total: divisionKpis.length,
-      approved,
-      avg,
-    };
-  }).filter((row) => row.total > 0);
-
-  const totalKpis = rows.reduce((sum, row) => sum + row.total, 0);
-  const totalApproved = rows.reduce((sum, row) => sum + row.approved, 0);
-  const overallAvg = rows.length
-    ? Math.round(rows.reduce((sum, row) => sum + row.avg, 0) / rows.length)
-    : 0;
-
-  const numColor = (avg: number) =>
-    avg >= 80 ? "#16A34A" : avg >= 60 ? "#D97706" : "#DC2626";
+  }
 
   return (
-    <table className="w-full border-collapse">
-      <thead>
-        <tr className="bg-[#FAFAFA]">
-          {HEADERS.map((h) => (
-            <th
-              key={h}
-              className="border-b border-slate-100 px-5 py-2.5 text-left text-[11px] font-semibold tracking-wider whitespace-nowrap text-slate-500 uppercase"
-            >
-              {h}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row, i) => (
-          <tr
+    <div>
+      {rows.map((row, index) => {
+        const isOpen = expandedDivision === row.division;
+        const avgColor =
+          row.avg >= 80 ? "#16A34A" : row.avg >= 60 ? "#D97706" : "#DC2626";
+        const deltaColor = row.delta >= 0 ? "#16A34A" : "#DC2626";
+
+        return (
+          <div
             key={row.division}
-            style={{ background: i % 2 === 0 ? "#fff" : "#FAF9FF" }}
+            className={cn(index < rows.length - 1 && "border-b border-slate-100")}
           >
-            <td className="px-5 py-3.5">
-              <DivBadge div={row.division} />
-            </td>
-            <td className="px-5 py-3.5 text-[13px] font-medium text-slate-700">
-              {row.name}
-            </td>
-            <td className="px-5 py-3.5 font-mono text-[13px] text-slate-500">
-              {row.total}
-            </td>
-            <td className="px-5 py-3.5 font-mono text-[13px] text-green-600">
-              {row.approved}/{row.total}
-            </td>
-            <td className="px-5 py-3.5">
+            <button
+              type="button"
+              onClick={() =>
+                setExpandedDivision(isOpen ? null : row.division)
+              }
+              className={cn(
+                "flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors",
+                isOpen ? "bg-purple-50" : "bg-white hover:bg-[#FAF9FF]",
+              )}
+            >
               <span
-                className="font-mono text-[15px] font-bold"
-                style={{ color: numColor(row.avg) }}
+                className={cn(
+                  "flex size-5 shrink-0 items-center justify-center rounded-md transition-all",
+                  isOpen ? "bg-purple-700 text-white" : "bg-slate-100 text-slate-500",
+                )}
               >
-                {row.avg}%
+                <ChevronRight
+                  className={cn("size-3 transition-transform", isOpen && "rotate-90")}
+                />
               </span>
-            </td>
-            <td className="min-w-[180px] px-5 py-3.5">
-              <ProgressBar value={row.avg} max={100} />
-            </td>
-          </tr>
-        ))}
-        {rows.length > 0 && (
-          <tr
-            style={{
-              background: "#F5F3FF",
-              borderTop: "2px solid #EDE9FE",
-            }}
-          >
-            <td className="px-5 py-3.5">
-              <DivBadge div="ฝบร." />
-            </td>
-            <td className="px-5 py-3.5 text-[13px] font-semibold text-purple-900">
-              รวมทั้งฝ่าย
-            </td>
-            <td className="px-5 py-3.5 font-mono text-[13px] font-bold text-purple-600">
-              {totalKpis}
-            </td>
-            <td className="px-5 py-3.5 font-mono text-[13px] font-bold text-green-600">
-              {totalApproved}/{totalKpis}
-            </td>
-            <td className="px-5 py-3.5">
-              <span className="font-mono text-[15px] font-bold text-purple-600">
-                {overallAvg}%
-              </span>
-            </td>
-            <td className="px-5 py-3.5">
-              <ProgressBar value={overallAvg} max={100} showLabel={false} />
-            </td>
-          </tr>
-        )}
-      </tbody>
-    </table>
+              <DivBadge div={row.division} />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[12px] font-semibold text-slate-800">
+                  {row.name}
+                </div>
+                <div className="mt-px truncate text-[10px] text-slate-400">
+                  KPI ทั้งหมด {row.total} รายการ · อนุมัติแล้ว {row.approved} ·
+                  รออนุมัติ {row.pending}
+                </div>
+              </div>
+              <MiniSparkline row={row} />
+              <div className="flex shrink-0 items-center gap-2">
+                <span
+                  className="font-mono text-[16px] leading-none font-bold"
+                  style={{ color: avgColor }}
+                >
+                  {row.avg}%
+                </span>
+                <span
+                  className="rounded px-1.5 py-0.5 font-mono text-[9px] font-semibold"
+                  style={{
+                    color: deltaColor,
+                    background: row.delta >= 0 ? "#F0FDF4" : "#FEF2F2",
+                  }}
+                >
+                  {row.delta >= 0 ? "+" : ""}
+                  {row.delta}%
+                </span>
+              </div>
+            </button>
+
+            {isOpen && (
+              <div className="border-t border-purple-100 bg-[#FAF9FF] px-4 py-2.5">
+                {row.kpis.length === 0 ? (
+                  <div className="py-6 text-center text-[12px] text-slate-400">
+                    ยังไม่มีตัวชี้วัด
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-lg border border-purple-100 bg-white">
+                    <table className="w-full min-w-[760px] border-collapse">
+                      <thead>
+                        <tr className="bg-[#FAFAFA]">
+                          {[
+                            "รหัส",
+                            "ชื่อตัวชี้วัด",
+                            "น้ำหนัก",
+                            "สถานะ",
+                            "ระดับล่าสุด",
+                            "ผลจริง",
+                            "",
+                          ].map((header) => (
+                            <th
+                              key={header}
+                              className="border-b border-slate-100 px-3 py-2 text-left text-[10px] font-semibold tracking-[0.04em] whitespace-nowrap text-slate-400 uppercase"
+                            >
+                              {header}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {row.kpis.map((kpi) => (
+                          <tr
+                            key={kpi.id}
+                            className="transition-colors hover:bg-purple-50/50"
+                          >
+                            <td className="border-b border-slate-50 px-3 py-2 font-mono text-[11px] font-semibold whitespace-nowrap text-purple-600">
+                              {kpi.code}
+                            </td>
+                            <td className="border-b border-slate-50 px-3 py-2 text-[12px] font-medium text-slate-700">
+                              <div className="line-clamp-2">{kpi.title}</div>
+                            </td>
+                            <td className="border-b border-slate-50 px-3 py-2 font-mono text-[12px] whitespace-nowrap text-slate-500">
+                              {kpi.weight}%
+                            </td>
+                            <td className="border-b border-slate-50 px-3 py-2">
+                              <StatusBadge status={kpi.status} size="sm" />
+                            </td>
+                            <td className="border-b border-slate-50 px-3 py-2">
+                              {kpi.latestLevel ? (
+                                <LevelBadge level={kpi.latestLevel.level} />
+                              ) : (
+                                <span className="text-[11px] text-slate-300">
+                                  —
+                                </span>
+                              )}
+                            </td>
+                            <td className="border-b border-slate-50 px-3 py-2 font-mono text-[12px] font-semibold whitespace-nowrap text-slate-700">
+                              {kpi.latestLevel
+                                ? `${kpi.latestLevel.actual ?? "—"} ${kpi.unit}`
+                                : "—"}
+                            </td>
+                            <td className="border-b border-slate-50 px-3 py-2 text-right">
+                              <Link
+                                href={`/kpi/${kpi.id}`}
+                                transitionTypes={["nav-forward"]}
+                                className="inline-flex size-6 items-center justify-center rounded-md text-slate-300 hover:bg-purple-100 hover:text-purple-700"
+                                aria-label={`ดูรายละเอียด ${kpi.code}`}
+                              >
+                                <ChevronRight className="size-4" />
+                              </Link>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function MiniSparkline({ row }: { row: DashboardDivisionRow }) {
+  const values = row.trend.map((point) => point.score);
+  if (values.length === 0) return null;
+
+  const path = values
+    .map((value, index) => {
+      const x = (index / Math.max(1, values.length - 1)) * 100;
+      const y = 28 - (Math.max(0, Math.min(100, value)) / 100) * 24;
+      return `${index === 0 ? "M" : "L"} ${x} ${y}`;
+    })
+    .join(" ");
+  const color = row.avg >= 80 ? "#16A34A" : row.avg >= 60 ? "#D97706" : "#DC2626";
+  const lastY = 28 - (Math.max(0, Math.min(100, values.at(-1) ?? 0)) / 100) * 24;
+
+  return (
+    <svg
+      width="88"
+      height="28"
+      viewBox="0 0 104 34"
+      className="hidden shrink-0 md:block"
+      aria-hidden="true"
+    >
+      <path d={path} fill="none" stroke={color} strokeWidth="1.7" />
+      <circle cx="100" cy={lastY} r="2.6" fill={color} />
+    </svg>
   );
 }
