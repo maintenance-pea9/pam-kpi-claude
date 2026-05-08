@@ -1,17 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { buttonVariants } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { DivisionSummary } from "@/components/dashboard/division-summary";
-import { KpiStatusDonut } from "@/components/dashboard/kpi-status-donut";
 import { KpiTrendChart } from "@/components/dashboard/kpi-trend-chart";
 import { StatCards } from "@/components/dashboard/stat-cards";
+import { StatusDonut } from "@/components/dashboard/status-donut";
+import { buttonVariants } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { buildDashboardAnalytics } from "@/lib/dashboard-analytics";
 import { shortRoleLabels } from "@/lib/labels";
+import { cn } from "@/lib/utils";
 import { MONTHS_TH } from "@/lib/workflow";
 import { useApp } from "@/providers/app-provider";
-import { cn } from "@/lib/utils";
-import { ChevronRight, ListChecks, BarChart3 } from "lucide-react";
+import { BarChart3, CalendarDays, ListChecks } from "lucide-react";
 
 export default function DashboardPage() {
   const {
@@ -19,32 +20,40 @@ export default function DashboardPage() {
     selectedMonth,
     selectedYear,
     visibleKpis,
-    visibleReports,
-    kpis,
+    reports,
   } = useApp();
-  const statuses = visibleKpis.map((kpi) => kpi.status);
-  const total = statuses.length;
-  const approved = statuses.filter((s) => s === "approved").length;
-  const pctApproved = total > 0 ? Math.round((approved / total) * 100) : 0;
   const monthLabel = MONTHS_TH[selectedMonth - 1];
-  const previousYear = selectedYear - 1;
+  const analytics = buildDashboardAnalytics({
+    kpis: visibleKpis,
+    reports,
+    selectedMonth,
+    selectedYear,
+  });
+  const trendStart = analytics.trend[0];
+  const trendEnd = analytics.trend.at(-1);
 
   return (
-    <div className="space-y-6">
-      {/* Welcome strip */}
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+    <div className="space-y-2.5">
+      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-800">
-            สวัสดี,{" "}
-            <span className="text-purple-600">
-              {currentUser ? shortRoleLabels[currentUser.role] : "ผู้ใช้งาน"}
-            </span>
+          <h1 className="text-[20px] leading-tight font-bold text-slate-800">
+            ภาพรวม KPI
           </h1>
-          <p className="mt-1 text-[13px] text-slate-500">
-            ภาพรวม KPI ฝ่ายบริหารจัดการสินทรัพย์ระบบไฟฟ้า (ฝบร.) · {monthLabel} {selectedYear}
+          <p className="mt-0.5 text-[12px] text-slate-500">
+            สวัสดี,{" "}
+            <span className="font-semibold text-purple-600">
+              {currentUser ? shortRoleLabels[currentUser.role] : "ผู้ใช้งาน"}
+            </span>{" "}
+            · ภาพรวม KPI ฝ่ายบริหารจัดการสินทรัพย์ระบบไฟฟ้า (ฝบร.)
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5 rounded-lg border border-purple-100 bg-white px-2.5 py-[6px]">
+            <CalendarDays className="size-3.5 text-purple-500" />
+            <span className="font-mono text-[12px] font-medium text-purple-700">
+              {monthLabel} {selectedYear}
+            </span>
+          </div>
           <Link
             href="/kpi"
             transitionTypes={["nav-forward"]}
@@ -59,7 +68,10 @@ export default function DashboardPage() {
           <Link
             href="/reports"
             transitionTypes={["nav-forward"]}
-            className={cn(buttonVariants({ size: "sm" }), "gap-1.5 bg-purple-600 hover:bg-purple-700")}
+            className={cn(
+              buttonVariants({ size: "sm" }),
+              "gap-1.5 bg-purple-600 hover:bg-purple-700",
+            )}
           >
             <BarChart3 className="size-3.5" />
             รายงานผล
@@ -67,63 +79,84 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Stat cards row */}
-      <StatCards statuses={statuses} pctApproved={pctApproved} />
+      <StatCards stats={analytics.stats} />
 
-      {/* Bar chart + Donut row */}
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid gap-2.5 xl:grid-cols-[minmax(0,1fr)_292px]">
         <Card className="rounded-xl border-purple-100 shadow-sm">
-          <CardContent className="px-6 py-5">
-            <div className="mb-5 flex items-start justify-between">
+          <CardContent className="px-3.5 py-2.5">
+            <div className="mb-2 flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
               <div>
-                <div className="text-sm font-semibold text-slate-800">
-                  แนวโน้มผลการดำเนินงาน KPI
+                <div className="text-[13px] font-semibold text-slate-800">
+                  แนวโน้มผลการดำเนินงาน KPI รายกอง
                 </div>
-                <div className="mt-0.5 text-xs text-slate-400">
-                  ต.ค. {previousYear} – {monthLabel} {selectedYear} · เฉลี่ยทุกกอง
+                <div className="mt-0.5 text-[11px] text-slate-400">
+                  {trendStart?.monthLabel} {trendStart?.year} –{" "}
+                  {trendEnd?.monthLabel} {trendEnd?.year} · แสดงตามสิทธิ์การมองเห็น
                 </div>
               </div>
-              <span className="font-mono text-[22px] font-bold text-purple-600">
-                87%
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="font-mono text-[18px] leading-none font-bold text-purple-600">
+                  {analytics.currentScore}%
+                </span>
+                {analytics.scoreDelta !== null && (
+                  <span
+                    className={cn(
+                      "rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold",
+                      analytics.scoreDelta >= 0
+                        ? "bg-green-50 text-green-600"
+                        : "bg-red-50 text-red-600",
+                    )}
+                  >
+                    {analytics.scoreDelta >= 0 ? "+" : ""}
+                    {analytics.scoreDelta}%
+                  </span>
+                )}
+              </div>
             </div>
-            <KpiTrendChart />
+            <KpiTrendChart trends={analytics.divisionTrends} />
           </CardContent>
         </Card>
 
         <Card className="rounded-xl border-purple-100 shadow-sm">
-          <CardContent className="px-6 py-5">
-            <div className="mb-1 text-sm font-semibold text-slate-800">
-              สัดส่วนสถานะ KPI
+          <CardContent className="px-3.5 py-2.5">
+            <div className="mb-2">
+              <div className="text-[13px] font-semibold text-slate-800">
+                สัดส่วนสถานะ KPI
+              </div>
+              <div className="mt-0.5 text-[11px] text-slate-400">
+                {monthLabel} {selectedYear}
+              </div>
             </div>
-            <div className="mb-4 text-xs text-slate-400">
-              {monthLabel} {selectedYear} · รวมทุกกอง
-            </div>
-            <KpiStatusDonut statuses={statuses} />
+            <StatusDonut
+              slices={analytics.statusSlices}
+              total={analytics.totalKpis}
+            />
           </CardContent>
         </Card>
       </div>
 
-      {/* Division summary table */}
       <Card className="overflow-hidden rounded-xl border-purple-100 p-0 shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5">
           <div>
             <div className="text-sm font-semibold text-slate-800">
               สรุปผลการดำเนินงานรายกอง
             </div>
             <div className="mt-0.5 text-xs text-slate-400">
-              ฝ่ายบริหารจัดการสินทรัพย์ระบบไฟฟ้า (ฝบร.) · {monthLabel} {selectedYear}
+              คลิกที่แต่ละกองเพื่อดูตัวชี้วัด · {monthLabel} {selectedYear}
             </div>
           </div>
           <Link
             href="/reports"
             transitionTypes={["nav-forward"]}
-            className="flex items-center gap-1 text-xs text-slate-500 hover:text-purple-600"
+            className={cn(
+              buttonVariants({ variant: "ghost", size: "sm" }),
+              "text-slate-500 hover:text-purple-600",
+            )}
           >
-            ดูรายงาน <ChevronRight className="size-3" />
+            ดูรายงาน
           </Link>
         </div>
-        <DivisionSummary kpis={kpis} reports={visibleReports} />
+        <DivisionSummary rows={analytics.divisionRows} />
       </Card>
     </div>
   );

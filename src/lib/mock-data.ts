@@ -118,7 +118,83 @@ export const seedKpis: KpiItem[] = [
   },
 ];
 
+const historicalReportSeeds = [
+  {
+    kpiId: "kpi-gbp-001",
+    division: "กบผ.",
+    actuals: [88.4, 93.1, 94.2, 95.8, 98.1, 96.3],
+    scores: [3, 4, 4, 4, 5, 4],
+    summary: "แนวโน้มการตอบสนองต่อเหตุขัดข้องดีขึ้นจากการจัดเวรและทบทวนจุดเสี่ยงต่อเนื่อง",
+  },
+  {
+    kpiId: "kpi-gbp-002",
+    division: "กบผ.",
+    actuals: [78.2, 82.6, 88.1, 90.4, 91.2, 89.7],
+    scores: [3, 3, 4, 4, 4, 4],
+    summary: "งานบำรุงรักษาตามแผนขยับดีขึ้นหลังปรับลำดับงานและติดตามวัสดุสำรองรายสัปดาห์",
+  },
+  {
+    kpiId: "kpi-gbr-001",
+    division: "กบร.",
+    actuals: [95.1, 95.8, 96.1, 94.4, 96.9, 97.2],
+    scores: [4, 4, 4, 3, 4, 4],
+    summary: "ความพร้อมใช้งานของระบบจำหน่ายทรงตัวในระดับดี โดยมีเดือนมกราคมที่ต้องเฝ้าระวังโหลด",
+  },
+  {
+    kpiId: "kpi-gbk-001",
+    division: "กบค.",
+    actuals: [90.7, 92.9, 94.2, 94.8, 93.2, 95.1],
+    scores: [3, 4, 4, 4, 3, 4],
+    summary: "เครื่องจักรกลหลักมีแนวโน้มดีขึ้นหลังเพิ่มรอบตรวจเชิงป้องกันและบันทึก downtime รายเครื่อง",
+  },
+] satisfies Array<{
+  kpiId: string;
+  division: MonthlyReport["division"];
+  actuals: number[];
+  scores: MonthlyReport["scoreLevel"][];
+  summary: string;
+}>;
+
+const historicalMonths = [
+  { month: 10, year: 2568 },
+  { month: 11, year: 2568 },
+  { month: 12, year: 2568 },
+  { month: 1, year: 2569 },
+  { month: 2, year: 2569 },
+  { month: 3, year: 2569 },
+];
+
+const historicalReports: MonthlyReport[] = historicalReportSeeds.flatMap(
+  (seed) =>
+    historicalMonths.map(({ month, year }, index) => ({
+      id: `rpt-hist-${seed.kpiId}-${year}-${String(month).padStart(2, "0")}`,
+      kpiId: seed.kpiId,
+      month,
+      year,
+      division: seed.division,
+      actual: seed.actuals[index],
+      scoreLevel: seed.scores[index],
+      status: "approved",
+      performanceSummary: seed.summary,
+      level4Action:
+        seed.scores[index] >= 4
+          ? "รักษาระดับการติดตามรายสัปดาห์และทบทวนจุดเสี่ยงก่อนปิดเดือน"
+          : "",
+      obstacles:
+        seed.scores[index] < 4
+          ? "มีข้อจำกัดจากงานซ่อมบำรุงและทรัพยากรบางช่วงของเดือน"
+          : "",
+      correctivePlan:
+        seed.scores[index] < 4
+          ? "เร่งจัดลำดับงานสำคัญและติดตามตัวชี้วัดที่ต่ำกว่าเป้ารายสัปดาห์"
+          : "",
+      approvalLogs: [],
+      updatedAt: `${year}-${String(month).padStart(2, "0")}-28`,
+    })),
+);
+
 export const seedReports: MonthlyReport[] = [
+  ...historicalReports,
   {
     id: "rpt-gbr-001-04", kpiId: "kpi-gbr-001", month: 4, year: 2569, division: "กบร.",
     actual: 96.5, scoreLevel: 4, status: "approved",
